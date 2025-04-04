@@ -1,0 +1,89 @@
+# ran the below code in github hosted runner working fine
+
+name: Deploy to Amazon ECR
+
+on:
+  push:
+    branches: [ "master" ]
+
+env:
+  AWS_REGION: ap-south-1
+  ECR_REPOSITORY: backendecr
+
+jobs:
+  build:
+    name: Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set Up JDK 17 (Required for SonarQube)
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
+    - name: Cache SonarQube Packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.sonar/cache
+        key: ${{ runner.os }}-sonar
+        restore-keys: ${{ runner.os }}-sonar
+
+    - name: Install SonarScanner
+      run: |
+        sudo apt update
+        sudo apt install -y unzip curl openjdk-17-jdk
+        curl -o sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip
+        unzip sonar-scanner.zip
+        sudo mv sonar-scanner-5.0.1.3006-linux /opt/sonar-scanner
+        echo "export PATH=/opt/sonar-scanner/bin:$PATH" | sudo tee -a /etc/profile
+        echo "export PATH=/opt/sonar-scanner/bin:$PATH" | tee -a ~/.bashrc ~/.profile
+        export PATH=/opt/sonar-scanner/bin:$PATH
+        ls -la /opt/sonar-scanner/bin
+        /opt/sonar-scanner/bin/sonar-scanner --version
+
+    - name: SonarQube Scan
+      env:
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+      run: |
+        export PATH=/opt/sonar-scanner/bin:$PATH
+        sonar-scanner \
+          -Dsonar.projectKey=chromosomebackend \
+          -Dsonar.sources=. \
+          -Dsonar.host.url=$SONAR_HOST_URL \
+          -Dsonar.login=$SONAR_TOKEN
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Install Docker (if not available)
+      run: |
+        sudo apt update
+        sudo apt install -y docker.io || true
+        sudo apt remove -y containerd || true
+        sudo apt install -y containerd.io || true
+        sudo systemctl start docker
+        sudo systemctl enable docker
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+
+    - name: Build, tag, and push image to Amazon ECR
+      id: build-image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_ENV
