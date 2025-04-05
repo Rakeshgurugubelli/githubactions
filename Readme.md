@@ -22,4 +22,18 @@ Step-2: click on the settings, on the leftside below code and automation click o
 Step-3: click on the new environment and add
 ![image](https://github.com/user-attachments/assets/845c799c-1040-4d6f-8338-5ad5318b8325)
 
+############how to configure self-hosted runners in github actions#####
+
+Step-1: click on the repository 
+![image](https://github.com/user-attachments/assets/869811ca-1e5c-484f-b4d0-6777d6c16b21)
+
+Step-2: click on the settings, on the leftside below code and automation click on the Actions and select runners
+![image](https://github.com/user-attachments/assets/48615458-28eb-46cb-b7f4-e7ee2ab84bc2)
+
+Step-3: select the runner image based on the requirement and run below commands on the server 
+![image](https://github.com/user-attachments/assets/26b5300e-e161-498f-97b8-ea103eb36469)
+
+
+
+
 
