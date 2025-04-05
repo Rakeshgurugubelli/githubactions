@@ -33,6 +33,8 @@ Step-2: click on the settings, on the leftside below code and automation click o
 Step-3: select the runner image based on the requirement and run below commands on the server 
 ![image](https://github.com/user-attachments/assets/26b5300e-e161-498f-97b8-ea103eb36469)
 
+Step-4: After running all the commands Ensure in the CICD pipeline mention runs_on: self-hosted
+
 
 
 
