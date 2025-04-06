@@ -1,4 +1,5 @@
 # ran the below code in github hosted runner working fine
+# ran the below code in self hosted runner working fine
 
 name: Deploy to Amazon ECR
 
