@@ -1,0 +1,109 @@
+name: Deploy into EKS
+
+on:
+ 
+  push:
+    branches: [ development ]
+
+env:
+
+  AWS_REGION: 
+  ECR_REPOSITORY: 
+  EKS_CLUSTER:
+  
+
+
+jobs:
+  build:
+
+
+    name: Deployment
+    runs-on: ubuntu-latest
+
+    steps:
+
+    - name: Checkout the repositoy
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+
+    - name: Install Docker (if not available)
+      run: |
+        
+        if ! command -v docker &> /dev/null; then
+          echo "Docker not found. Installing Docker..."
+          sudo apt-get update -y
+          sudo apt-get  install -y docker.io 
+          sudo systemctl start docker
+          sudo systemctl enable docker
+        else:
+          echo "docker installed"
+        fi
+
+    
+    - name: Build, tag, and push image to Amazon ECR
+      id: build-image
+
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+
+      run: |
+
+        # Build a docker container and
+        # push it to ECR so that it can
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+    - name: Install EKS (if not installed)
+      run: |
+        if ! command -v eksctl > /dev/null 2>&1; then
+           echo "eksctl not found. Installing eksctl..."
+           curl --silent --location "https://github.com/weaveworks/eksctl/releases/download/v0.144.0/eksctl_Linux_amd64.tar.gz" | tar xz -C /tmp
+           sudo mv /tmp/eksctl /usr/local/bin
+        else
+           echo "eksctl is already installed"
+        fi
+    
+    - name: install kubectl (if not installed)
+      run: |
+        if ! command  -v kubectl > /dev/null; then
+           echo "kubectl not found. install kubectl.."
+           sudo apt-get update
+           sudo apt-get install -y apt-transport-https ca-certificates curl gnupg
+           curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
+           sudo apt-add-repository "deb https://apt.kubernetes.io/ kubernetes-xenial main"
+           sudo apt-get update
+           sudo apt-get install -y kubectl
+           kubectl version 
+        else
+           echo "kubectl is already installed"
+        fi
+    
+    - name: Update kube config
+      run: aws eks update-kubeconfig --name ${{ env.EKS_CLUSTER }} --region ${{ env.AWS_REGION }} 
+
+    - name: Deploy to EKS
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}        
+        IMAGE_TAG: ${{ steps.commit.outputs.short }}
+      run: |
+         kubectl apply -f deployment.yaml
+        kubectl apply -f service.yaml     
+
+         
+
+
+     
+
+
